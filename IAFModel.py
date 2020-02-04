@@ -8,43 +8,48 @@ from mpl_toolkits.mplot3d import Axes3D
 
 import MaximumEntropy
 
-
 AP_VOLTAGE = 0
 # From Neuron->To Neuron
-CONNECTIONS = {0: {0:0, 1:0, 3:1},
-               1: {0:1, 1:0, 4:1},
-               2: {0:1, 1:10},
-               3: {1:1, 2:1},
-               4: {3:1, 2:1}}
-n=5
-CONNECTIONS_FULLY = dict([(j, dict([(i,1) for i in set(range(n)).difference([j])])) for j in range(n)])
-#TODO: poissonic stimulation
+CONNECTIONS = {0: {0: 0, 1: 0, 3: 1},
+               1: {0: 1, 1: 0, 4: 1},
+               2: {0: 1, 1: 10},
+               3: {1: 1, 2: 1},
+               4: {3: 1, 2: 1}}
+
+
+def CONNECTIONS_FULLY(n):
+    return dict([(j, dict([(i, 1) for i in set(range(n)).difference([j])])) for j in range(n)])
+
+
+# TODO: poissonic stimulation
 
 class IAFSimulation(object):
 
     def __init__(self, connections, input_current=2,
-                 V_rest=-0.07, V_reset=-0.07, V_th=-0.054, V_is=-0.08, V_es=0, tm=0.02, ts=0.01, P_max=1, rm_gs=0.5, Rm=0.010):
+                 V_rest=-0.07, V_reset=-0.07, V_th=-0.054, V_is=-0.08, V_es=0, tm=0.02, ts=0.01, P_max=1, rm_gs=0.5,
+                 Rm=0.010):
         self.V_es = V_es
         self.V_is = V_is
         self.V_th = V_th
         self.V_rest = V_rest
         self.V_reset = V_reset
         self.Rm = Rm
-        self.input_current=input_current
+        self.input_current = input_current
         self.P_max = P_max
         self.rm_gs = rm_gs
         self.ts = ts
         self.tm = tm
         self.number_of_neurons = len(connections)
-        self.connectivity_matrix = np.fromfunction(np.vectorize(lambda i, j:connections.get(i,{}).get(j,0)), (self.number_of_neurons,self.number_of_neurons)).T
+        self.connectivity_matrix = np.fromfunction(np.vectorize(lambda i, j: connections.get(i, {}).get(j, 0)),
+                                                   (self.number_of_neurons, self.number_of_neurons)).T
         self.neurons = None
         self.P_synapses = None
         self.dt = None
         self.Ie = None
 
-    def simultate(self, dt = 0.0001, total_time = 1000 * 20):
+    def simultate(self, dt=0.0001, total_time=1000 * 20):
         self.neurons = np.zeros((total_time, self.number_of_neurons))
-        self.Ie = np.random.normal(self.input_current, self.input_current /3, (total_time, self.number_of_neurons))
+        self.Ie = np.random.normal(self.input_current, self.input_current / 3, (total_time, self.number_of_neurons))
         self.neurons[0, :] = self.V_rest
         self.P_synapses = np.zeros((total_time, self.number_of_neurons, self.number_of_neurons))
         self.dt = dt
@@ -77,15 +82,16 @@ class IAFSimulation(object):
                                 self.last_AP)
         # propagate Ps
         self.P_synapses[t + 1, :, :] = np.where(self.last_AP > 0,
-                                                (((t*self.dt - self.last_AP*self.dt) / self.ts) * np.exp(1 - (t*self.dt-self.last_AP*self.dt)/self.ts)) * self.P_max,
+                                                (((t * self.dt - self.last_AP * self.dt) / self.ts) * np.exp(
+                                                    1 - (t * self.dt - self.last_AP * self.dt) / self.ts)) * self.P_max,
                                                 0)
 
     def plot_results(self, N=100):
         gs = gridspec.GridSpec(self.number_of_neurons, 4)
-        f = plt.figure(figsize=(20,20))
+        f = plt.figure(figsize=(20, 20))
 
         for i in range(self.number_of_neurons):
-            ax0 = f.add_subplot(gs[i,0])
+            ax0 = f.add_subplot(gs[i, 0])
             ax0.plot(range(self.P_synapses[:N].shape[0]), self.P_synapses[:N, i, i])
             ax0.set_title("synapse {}".format(i))
             ax1 = f.add_subplot(gs[i, 1])
@@ -102,31 +108,32 @@ class IAFSimulation(object):
 
 def analyze_APs(neurons, dt=0.001, interval=0.02):
     df = pd.DataFrame(data=neurons, columns=map("neuron_{}".format, range(neurons.shape[1])))
-    df = df.groupby(pd.cut(df.index, np.arange(0, df.index.shape[0], int(interval/dt)))).max().reset_index(drop=True)
+    df = df.groupby(pd.cut(df.index, np.arange(0, df.index.shape[0], int(interval / dt)))).max().reset_index(drop=True)
     return (df >= AP_VOLTAGE).astype(int)
 
-#TODO: graph of the Average Neuron Input Strength
+
+# TODO: graph of the Average Neuron Input Strength
 
 
-
-def run_single(plot=True):
-    iaf = IAFSimulation(CONNECTIONS, input_current=2, rm_gs=2)
-    dt=0.001
+def run_single(plot=True, connections=CONNECTIONS):
+    iaf = IAFSimulation(connections, input_current=2, rm_gs=2)
+    dt = 0.001
     iaf.simultate(dt=dt, total_time=int(1 / dt * 20))
     if plot:
-        iaf.plot_results(N=int(1/(dt*10)))
+        iaf.plot_results(N=int(1 / (dt * 10)))
     df = analyze_APs(iaf.neurons, dt, dt)
     plt.pause(0.001)
     return df
 
+
 def run_simulation(current, synapse_weight):
     dt = 0.001
     # run simulation with the given params
-    iaf = IAFSimulation(CONNECTIONS_FULLY, input_current=current, rm_gs=synapse_weight)
+    iaf = IAFSimulation(CONNECTIONS_FULLY(5), input_current=current, rm_gs=synapse_weight)
     iaf.simultate(dt=dt, total_time=int(1 / dt * 20))
     df = analyze_APs(iaf.neurons, dt, dt)
     # calculate the firing rate
-    return df.mean().mean() * (1/dt)
+    return df.mean().mean() * (1 / dt)
 
 
 def compute_grid():
@@ -135,16 +142,17 @@ def compute_grid():
     xx, yy = np.meshgrid(x, y)
     vect_sim = np.vectorize(run_simulation)
     z = vect_sim(xx, yy)
-    fig = plt.figure(figsize = [15,10])
+    fig = plt.figure(figsize=[15, 10])
     ax = fig.gca(projection='3d')
-    surf = ax.plot_surface(xx, yy, z, cmap=cm.coolwarm,linewidth=0)
+    surf = ax.plot_surface(xx, yy, z, cmap=cm.coolwarm, linewidth=0)
     fig.colorbar(surf, shrink=0.5, aspect=5)
     ax.set_xlabel(r'$|I_{e}|$')
     ax.set_ylabel(r'$r_{m}g_{s}$')
     ax.set_zlabel(r'$FireRate(Hz)$')
     plt.pause(0.001)
 
-df = run_single()
+
+df = run_single(connections=CONNECTIONS_FULLY(10))
 me_opt = MaximumEntropy.MaxEntropyOptimizer(df)
 lambdas, iterations, delta, emp_marginals = me_opt.optimize(max_iterations=3000)
 plt.figure()
@@ -153,4 +161,3 @@ plt.xlabel('Iteration')
 plt.ylabel(r'$max_{\mu}(|<f_{\mu}>_{model}-<f_{\mu}>_{data}|)$')
 plt.pause(0.01)
 input("")
-
