@@ -6,12 +6,14 @@ import networkx as nx
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 
+import MaximumEntropy
+
 
 AP_VOLTAGE = 0
 # From Neuron->To Neuron
 CONNECTIONS = {0: {0:0, 1:0, 3:1},
                1: {0:1, 1:0, 4:1},
-               2: {0:1, 1:1},
+               2: {0:1, 1:10},
                3: {1:1, 2:1},
                4: {3:1, 2:1}}
 n=5
@@ -107,18 +109,20 @@ def analyze_APs(neurons, dt=0.001, interval=0.02):
 
 
 
-def run_single():
-    iaf = IAFSimulation(CONNECTIONS)
+def run_single(plot=True):
+    iaf = IAFSimulation(CONNECTIONS, input_current=2, rm_gs=2)
     dt=0.001
-    iaf.simultate(dt=dt, total_time=int(1/dt * 20))
-    iaf.plot_results(N=int(1/(dt*10)))
-    df = analyze_APs(iaf.neurons, dt, 0.02)
+    iaf.simultate(dt=dt, total_time=int(1 / dt * 20))
+    if plot:
+        iaf.plot_results(N=int(1/(dt*10)))
+    df = analyze_APs(iaf.neurons, dt, dt)
     plt.pause(0.001)
+    return df
 
 def run_simulation(current, synapse_weight):
     dt = 0.001
     # run simulation with the given params
-    iaf = IAFSimulation(CONNECTIONS_FULLY)
+    iaf = IAFSimulation(CONNECTIONS_FULLY, input_current=current, rm_gs=synapse_weight)
     iaf.simultate(dt=dt, total_time=int(1 / dt * 20))
     df = analyze_APs(iaf.neurons, dt, dt)
     # calculate the firing rate
@@ -140,6 +144,13 @@ def compute_grid():
     ax.set_zlabel(r'$FireRate(Hz)$')
     plt.pause(0.001)
 
-compute_grid()
+df = run_single()
+me_opt = MaximumEntropy.MaxEntropyOptimizer(df)
+lambdas, iterations, delta, emp_marginals = me_opt.optimize(max_iterations=3000)
+plt.figure()
+plt.plot(np.max(np.max(np.abs(delta), axis=2), axis=1)[:iterations])
+plt.xlabel('Iteration')
+plt.ylabel(r'$max_{\mu}(|<f_{\mu}>_{model}-<f_{\mu}>_{data}|)$')
+plt.pause(0.01)
 input("")
 
