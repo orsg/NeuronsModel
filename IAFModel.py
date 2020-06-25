@@ -152,7 +152,7 @@ def compute_grid():
     plt.pause(0.001)
 
 
-df = run_single(connections=CONNECTIONS_FULLY(10))
+df = run_single(connections=CONNECTIONS_FULLY(4))
 me_opt = MaximumEntropy.MaxEntropyOptimizer(df)
 lambdas, iterations, delta, emp_marginals = me_opt.optimize(max_iterations=3000)
 plt.figure()
